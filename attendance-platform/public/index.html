@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Attendance Report</title>
+<style>
+  :root{--bg:#0f1420;--card:#171e2e;--line:#262f45;--text:#e6ebf5;--muted:#8a94ab;--accent:#60a5fa;
+    --focused:#22c55e;--distracted:#f59e0b;--drowsy:#f97316;--sleeping:#ef4444;--absent:#64748b;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{padding:18px 20px;border-bottom:1px solid var(--line)}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:12px}
+  form{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  input{background:#11182a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:inherit;min-width:260px}
+  button{background:var(--accent);color:#06101f;border:0;border-radius:8px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
+  main{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .stat{background:#11182a;border:1px solid var(--line);border-radius:10px;padding:10px}
+  .stat span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .stat b{font-size:22px}
+  .charts{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+  @media (max-width:800px){.charts{grid-template-columns:1fr}}
+  .box{position:relative;height:240px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:#11182a}
+  .msg{color:var(--muted);min-height:20px}
+  .err{color:#f59e0b}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;color:#0b0f19}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:8px}
+  .hidden{display:none}
+  .wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>Meeting Attendance Report</h1>
+  <div class="sub">Enter a meeting ID to see overall attendance and each attendee's report. Only data is stored, never video.</div>
+  <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+    <span class="sub" id="hostInfo"></span>
+    <button type="button" id="logoutBtn" class="hidden" style="background:#171e2e;color:#e6ebf5;border:1px solid #262f45">Log out</button>
+  </div>
+  <form id="findForm" class="hidden">
+    <input id="meetingId" placeholder="Meeting ID, e.g. abc-defg-hij" autocomplete="off" required>
+    <button type="submit">Show report</button>
+  </form>
+  <div class="msg" id="msg"></div>
+</header>
+
+<main>
+  <section class="card hidden" id="loginCard">
+    <h2>Host login</h2>
+    <form id="loginForm">
+      <input id="loginUser" placeholder="Username" autocomplete="username" required>
+      <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit">Log in</button>
+    </form>
+    <div class="sub" style="margin-top:8px">Host accounts are created by the administrator on the server.</div>
+  </section>
+
+  <section class="card hidden" id="overallCard">
+    <h2 id="overallTitle">Overall attendance</h2>
+    <div class="cards">
+      <div class="stat"><span>Attendees</span><b id="sAttendees">--</b></div>
+      <div class="stat"><span>Attended (1+ min)</span><b id="sAttended">--</b></div>
+      <div class="stat"><span>Attendance rate</span><b id="sAttendancePct">--</b></div>
+      <div class="stat"><span>Average attention</span><b id="sAttention">--</b></div>
+      <div class="stat"><span>Sleep episodes</span><b id="sSleep">--</b></div>
+      <div class="stat"><span>Drowsy episodes</span><b id="sDrowsy">--</b></div>
+    </div>
+    <div class="charts" style="margin-top:16px">
+      <div>
+        <div class="sub" style="margin-bottom:6px">Average attention per minute (meeting-wide)</div>
+        <div class="box"><canvas id="overallChart"></canvas></div>
+      </div>
+      <div>
+        <div class="sub" style="margin-bottom:6px">Time by state</div>
+        <div class="box"><canvas id="stateChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="attendeeCard">
+    <h2>Individual reports (click a row for details)</h2>
+    <div class="wrap">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Present</th><th>Attention</th><th>Sleep</th><th>Drowsy</th><th>Tracked time</th><th>First seen</th><th>Last seen</th></tr>
+        </thead>
+        <tbody id="attendeeRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card hidden" id="detailCard">
+    <h2 id="detailTitle">Attendee detail</h2>
+    <div class="box"><canvas id="detailChart"></canvas></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--focused)"></i>Focused</span>
+      <span><i class="dot" style="background:var(--distracted)"></i>Distracted</span>
+      <span><i class="dot" style="background:var(--drowsy)"></i>Drowsy</span>
+      <span><i class="dot" style="background:var(--sleeping)"></i>Sleeping</span>
+      <span><i class="dot" style="background:var(--absent)"></i>Absent</span>
+    </div>
+  </section>
+</main>
+
+<script src="lib/chart.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

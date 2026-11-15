@@ -1,0 +1,6 @@
+node_modules/
+db/
+*.log
+cookies.txt
+.DS_Store
+Thumbs.db

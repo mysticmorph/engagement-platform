@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Attention Monitor for Meetings",
+  "version": "0.1.0",
+  "description": "Local webcam attention and drowsiness monitor. Shows a live state badge on Google Meet and Zoom. Video stays on this device.",
+  "permissions": ["sidePanel"],
+  "host_permissions": ["https://meet.google.com/*", "https://*.zoom.us/*", "http://localhost:3000/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Open Attention Monitor" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*", "https://*.zoom.us/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attention Monitor</title>
+<style>
+  :root{
+    --bg:#0f1420; --card:#171e2e; --line:#262f45; --text:#e6ebf5; --muted:#8a94ab;
+    --focused:#22c55e; --distracted:#f59e0b; --drowsy:#f97316; --sleeping:#ef4444; --absent:#64748b;
+    --accent:#60a5fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{padding:12px 14px;border-bottom:1px solid var(--line)}
+  h1{font-size:16px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:11px}
+  .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  button{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit}
+  button.primary{background:var(--accent);color:#06101f;border-color:var(--accent);font-weight:600}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  main{display:flex;flex-direction:column;gap:12px;padding:12px 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+  .camwrap{position:relative;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden}
+  video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .badge{position:absolute;left:8px;top:8px;padding:4px 10px;border-radius:999px;font-weight:700;font-size:12px;color:#0b0f19;background:var(--absent)}
+  .state{font-size:22px;font-weight:800;margin:2px 0}
+  .score{font-size:34px;font-weight:800}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+  .metric{background:#11182a;border:1px solid var(--line);border-radius:8px;padding:6px}
+  .metric span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+  .metric b{font-size:14px}
+  .msg{margin-top:8px;color:var(--muted);min-height:18px;font-size:12px}
+  .warn{color:var(--distracted)}
+  .chartbox{position:relative;height:180px}
+  table.matrix{width:100%;border-collapse:separate;border-spacing:2px;table-layout:fixed}
+  table.matrix th{text-align:left;font-weight:600;font-size:10px;width:70px;color:var(--muted);white-space:nowrap}
+  table.matrix td{height:18px;background:#11182a;border-radius:3px}
+  table.summary{width:100%;border-collapse:collapse}
+  table.summary td,table.summary th{padding:5px 3px;border-bottom:1px solid var(--line);text-align:left}
+  table.summary th{color:var(--muted);font-weight:600;font-size:11px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .note{color:var(--muted);font-size:11px;margin-top:8px}
+  .fields{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .fields input{background:#11182a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+</style>
+</head>
+<body>
+<header>
+  <h1>Attention Monitor</h1>
+  <div class="sub">Video stays on this device. Only per-minute counts are sent to the host server.</div>
+  <div class="fields">
+    <input id="meetingId" placeholder="Meeting ID (auto-filled from the Meet/Zoom tab)" autocomplete="off">
+    <input id="nameInput" placeholder="Your name (shown to the host)" autocomplete="off">
+    <input id="serverUrl" placeholder="Server address, e.g. 192.168.1.20:3000 (localhost:3000 if same laptop)" autocomplete="off">
+  </div>
+  <div class="btns">
+    <button id="btnStart" class="primary">Start camera</button>
+    <button id="btnCalib" disabled>Calibrate (4 s)</button>
+    <button id="btnExport" disabled>Export CSV</button>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Camera</h2>
+    <div class="camwrap">
+      <video id="video" playsinline muted></video>
+      <div id="badge" class="badge">OFF</div>
+    </div>
+    <div class="msg" id="msg">Click "Start camera" and allow webcam access.</div>
+    <div class="msg" id="uploadMsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Current state</h2>
+    <div class="state" id="curState" style="color:var(--absent)">Not started</div>
+    <div>Attention score: <span class="score" id="curScore">--</span><span class="sub"> / 100</span></div>
+    <div class="grid">
+      <div class="metric"><span>Face detected</span><b id="mFace">--</b></div>
+      <div class="metric"><span>Eyes closed now</span><b id="mBlink">--</b></div>
+      <div class="metric"><span>PERCLOS (60 s)</span><b id="mPerclos">--</b></div>
+      <div class="metric"><span>Session avg</span><b id="mAvg">--</b></div>
+      <div class="metric"><span>Head turn (yaw)</span><b id="mYaw">--</b></div>
+      <div class="metric"><span>Head tilt (pitch)</span><b id="mPitch">--</b></div>
+    </div>
+    <div class="msg" id="calibInfo">Not calibrated (default forward position).</div>
+  </section>
+
+  <section class="card">
+    <h2>Attention score (last 5 minutes)</h2>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+  </section>
+
+  <section class="card">
+    <h2>State matrix (10-second slots)</h2>
+    <div id="matrix"></div>
+  </section>
+
+  <section class="card">
+    <h2>Time in each state</h2>
+    <table class="summary" id="summary"></table>
+  </section>
+</main>
+
+<script src="lib/chart.umd.js"></script>
+<script type="module" src="sidepanel.js"></script>
+</body>
+</html>
